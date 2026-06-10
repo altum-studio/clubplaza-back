@@ -17,9 +17,12 @@ create table public.locales (
 -- Perfil extendido de auth.users
 create table public.usuarios (
   id uuid primary key references auth.users (id) on delete cascade,
-  email text not null unique,
   nombre text not null,
   apellido text not null,
+  fecha_nacimiento date not null,
+  email text not null unique,
+  dni text not null unique,
+  telefono text not null,
   rol user_role not null default 'comun',
   local_id uuid references public.locales (id) on delete set null,
   activo boolean not null default true,

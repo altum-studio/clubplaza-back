@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js'
+import { pickAllowedFields, USUARIO_UPDATE_FIELDS } from '../constants/usuario.js'
 import { AppError } from '../utils/AppError.js'
 
 const USUARIO_SELECT = '*, locales(id, nombre)'
@@ -36,7 +37,19 @@ export async function getUsuarioById(id) {
   return data
 }
 
-export async function createUsuario({ email, password, nombre, apellido, rol, local_id = null }) {
+export async function createUsuario(payload) {
+  const {
+    email,
+    password,
+    nombre,
+    apellido,
+    fecha_nacimiento,
+    dni,
+    telefono,
+    rol,
+    local_id = null,
+  } = payload
+
   const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
     email,
     password,
@@ -53,9 +66,12 @@ export async function createUsuario({ email, password, nombre, apellido, rol, lo
     .from('usuarios')
     .insert({
       id: userId,
-      email,
       nombre,
       apellido,
+      fecha_nacimiento,
+      email,
+      dni,
+      telefono,
       rol,
       local_id,
     })
@@ -71,10 +87,7 @@ export async function createUsuario({ email, password, nombre, apellido, rol, lo
 }
 
 export async function updateUsuario(id, payload) {
-  const allowedFields = ['nombre', 'apellido', 'rol', 'local_id', 'activo']
-  const updates = Object.fromEntries(
-    Object.entries(payload).filter(([key]) => allowedFields.includes(key))
-  )
+  const updates = pickAllowedFields(payload, USUARIO_UPDATE_FIELDS)
 
   if (Object.keys(updates).length === 0) {
     throw new AppError('No hay campos válidos para actualizar', 400)

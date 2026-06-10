@@ -1,9 +1,39 @@
 import { supabaseAuth, supabaseAdmin } from '../config/supabase.js'
 import { ROLES } from '../constants/roles.js'
+import { assertRequiredProfileFields } from '../constants/usuario.js'
 import { AppError } from '../utils/AppError.js'
 import { sendWelcomeEmail } from './email.service.js'
 
-export async function register({ email, password, nombre, apellido, rol = ROLES.COMUN, local_id = null }) {
+export async function register(payload) {
+  const {
+    email,
+    password,
+    nombre,
+    apellido,
+    fecha_nacimiento,
+    dni,
+    telefono,
+    rol = ROLES.COMUN,
+    local_id = null,
+  } = payload
+
+  const missingFields = assertRequiredProfileFields({
+    nombre,
+    apellido,
+    fecha_nacimiento,
+    email,
+    dni,
+    telefono,
+  })
+
+  if (!password) {
+    throw new AppError('password es requerido', 400)
+  }
+
+  if (missingFields) {
+    throw new AppError(`Campos requeridos: ${missingFields.join(', ')}`, 400)
+  }
+
   if (rol !== ROLES.COMUN && rol !== ROLES.LOCAL && rol !== ROLES.ADMIN) {
     throw new AppError('Rol inválido', 400)
   }
@@ -26,9 +56,12 @@ export async function register({ email, password, nombre, apellido, rol = ROLES.
     .from('usuarios')
     .insert({
       id: userId,
-      email,
       nombre,
       apellido,
+      fecha_nacimiento,
+      email,
+      dni,
+      telefono,
       rol,
       local_id,
     })

@@ -1,4 +1,5 @@
 import * as usuariosService from '../services/usuarios.service.js'
+import { assertRequiredProfileFields, pickAllowedFields, USUARIO_SELF_UPDATE_FIELDS } from '../constants/usuario.js'
 import { AppError } from '../utils/AppError.js'
 
 export async function list(req, res) {
@@ -18,10 +19,33 @@ export async function getById(req, res) {
 }
 
 export async function create(req, res) {
-  const { email, password, nombre, apellido, rol, local_id } = req.body
+  const {
+    email,
+    password,
+    nombre,
+    apellido,
+    fecha_nacimiento,
+    dni,
+    telefono,
+    rol,
+    local_id,
+  } = req.body
 
-  if (!email || !password || !nombre || !apellido || !rol) {
-    throw new AppError('email, password, nombre, apellido y rol son requeridos', 400)
+  const missingFields = assertRequiredProfileFields({
+    nombre,
+    apellido,
+    fecha_nacimiento,
+    email,
+    dni,
+    telefono,
+  })
+
+  if (!password || !rol) {
+    throw new AppError('password y rol son requeridos', 400)
+  }
+
+  if (missingFields) {
+    throw new AppError(`Campos requeridos: ${missingFields.join(', ')}`, 400)
   }
 
   const usuario = await usuariosService.createUsuario({
@@ -29,6 +53,9 @@ export async function create(req, res) {
     password,
     nombre,
     apellido,
+    fecha_nacimiento,
+    dni,
+    telefono,
     rol,
     local_id,
   })
@@ -47,10 +74,11 @@ export async function remove(req, res) {
 }
 
 export async function updateMe(req, res) {
-  const allowedFields = ['nombre', 'apellido']
-  const updates = Object.fromEntries(
-    Object.entries(req.body).filter(([key]) => allowedFields.includes(key))
-  )
+  const updates = pickAllowedFields(req.body, USUARIO_SELF_UPDATE_FIELDS)
+
+  if (Object.keys(updates).length === 0) {
+    throw new AppError('No hay campos válidos para actualizar', 400)
+  }
 
   const usuario = await usuariosService.updateUsuario(req.auth.profile.id, updates)
   res.json(usuario)
