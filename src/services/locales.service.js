@@ -1,12 +1,10 @@
 import { supabaseAdmin } from '../config/supabase.js'
 import { AppError } from '../utils/AppError.js'
 
-const LOCAL_SELECT = '*, promos(count)'
-
 export async function listLocales({ activo, limit = 50, offset = 0 } = {}) {
   let query = supabaseAdmin
     .from('locales')
-    .select(LOCAL_SELECT, { count: 'exact' })
+    .select('*', { count: 'exact' })
     .order('nombre', { ascending: true })
     .range(offset, offset + limit - 1)
 
@@ -26,7 +24,7 @@ export async function listLocales({ activo, limit = 50, offset = 0 } = {}) {
 export async function getLocalById(id) {
   const { data, error } = await supabaseAdmin
     .from('locales')
-    .select(`${LOCAL_SELECT}, promos(*)`)
+    .select('*')
     .eq('id', id)
     .single()
 
@@ -41,7 +39,7 @@ export async function createLocal(payload) {
   const { data, error } = await supabaseAdmin
     .from('locales')
     .insert(payload)
-    .select(LOCAL_SELECT)
+    .select('*')
     .single()
 
   if (error) {
@@ -52,7 +50,16 @@ export async function createLocal(payload) {
 }
 
 export async function updateLocal(id, payload) {
-  const allowedFields = ['nombre', 'descripcion', 'piso', 'logo_url', 'activo']
+  const allowedFields = [
+    'nombre',
+    'descripcion',
+    'nro_local',
+    'rubro',
+    'logo_url',
+    'banner_url',
+    'horarios',
+    'activo',
+  ]
   const updates = Object.fromEntries(
     Object.entries(payload).filter(([key]) => allowedFields.includes(key))
   )
@@ -65,7 +72,7 @@ export async function updateLocal(id, payload) {
     .from('locales')
     .update(updates)
     .eq('id', id)
-    .select(LOCAL_SELECT)
+    .select('*')
     .single()
 
   if (error || !data) {

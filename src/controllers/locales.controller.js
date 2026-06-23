@@ -1,5 +1,7 @@
 import * as localesService from '../services/locales.service.js'
+import { resolveImageUrl } from '../services/upload.service.js'
 import { AppError } from '../utils/AppError.js'
+import { RUBROS } from '../constants/enums.js'
 
 export async function list(req, res) {
   const { activo, limit, offset } = req.query
@@ -17,17 +19,20 @@ export async function getById(req, res) {
 }
 
 export async function create(req, res) {
-  const { nombre, descripcion, piso, logo_url, activo } = req.body
+  const { nombre, nro_local, rubro, descripcion, logo_url, banner_url, horarios, activo } = req.body
 
-  if (!nombre) {
-    throw new AppError('nombre es requerido', 400)
-  }
+  if (!nombre?.trim()) throw new AppError('nombre es requerido', 400)
+  if (!rubro) throw new AppError('rubro es requerido', 400)
+  if (!RUBROS.includes(rubro)) throw new AppError(`rubro inválido. Opciones: ${RUBROS.join(', ')}`, 400)
 
   const local = await localesService.createLocal({
-    nombre,
-    descripcion,
-    piso,
-    logo_url,
+    nombre: nombre.trim(),
+    nro_local: nro_local ?? null,
+    rubro,
+    descripcion: descripcion ?? null,
+    logo_url: await resolveImageUrl(logo_url, 'logos'),
+    banner_url: await resolveImageUrl(banner_url, 'banners'),
+    horarios: horarios ?? null,
     activo: activo ?? true,
   })
 
@@ -41,7 +46,11 @@ export async function update(req, res) {
     throw new AppError('Solo podés actualizar tu propio local', 403)
   }
 
-  const local = await localesService.updateLocal(req.params.id, req.body)
+  const body = { ...req.body }
+  if (body.logo_url) body.logo_url = await resolveImageUrl(body.logo_url, 'logos')
+  if (body.banner_url) body.banner_url = await resolveImageUrl(body.banner_url, 'banners')
+
+  const local = await localesService.updateLocal(req.params.id, body)
   res.json(local)
 }
 
@@ -68,6 +77,10 @@ export async function updateMine(req, res) {
     throw new AppError('Tu usuario no tiene un local asignado', 404)
   }
 
-  const local = await localesService.updateLocal(localId, req.body)
+  const body = { ...req.body }
+  if (body.logo_url) body.logo_url = await resolveImageUrl(body.logo_url, 'logos')
+  if (body.banner_url) body.banner_url = await resolveImageUrl(body.banner_url, 'banners')
+
+  const local = await localesService.updateLocal(localId, body)
   res.json(local)
 }

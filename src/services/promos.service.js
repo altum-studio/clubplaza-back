@@ -1,16 +1,15 @@
 import { supabaseAdmin } from '../config/supabase.js'
 import { AppError } from '../utils/AppError.js'
 
-const PROMO_SELECT = '*, locales(id, nombre, logo_url)'
-
-export async function listPromos({ local_id, activa, limit = 50, offset = 0 } = {}) {
+export async function listPromos({ local_id, activa, rubro, limit = 50, offset = 0 } = {}) {
   let query = supabaseAdmin
     .from('promos')
-    .select(PROMO_SELECT, { count: 'exact' })
+    .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
   if (local_id) query = query.eq('local_id', local_id)
+  if (rubro) query = query.eq('rubro', rubro)
   if (activa !== undefined) {
     query = query.eq('activa', activa === true || activa === 'true')
   }
@@ -27,7 +26,7 @@ export async function listPromos({ local_id, activa, limit = 50, offset = 0 } = 
 export async function getPromoById(id) {
   const { data, error } = await supabaseAdmin
     .from('promos')
-    .select(PROMO_SELECT)
+    .select('*')
     .eq('id', id)
     .single()
 
@@ -42,7 +41,7 @@ export async function createPromo(payload) {
   const { data, error } = await supabaseAdmin
     .from('promos')
     .insert(payload)
-    .select(PROMO_SELECT)
+    .select('*')
     .single()
 
   if (error) {
@@ -56,10 +55,15 @@ export async function updatePromo(id, payload) {
   const allowedFields = [
     'titulo',
     'descripcion',
-    'descuento',
-    'fecha_inicio',
-    'fecha_fin',
-    'imagen_url',
+    'tipo',
+    'valor',
+    'dias',
+    'vigencia_desde',
+    'vigencia_hasta',
+    'limite_cantidad',
+    'limite_periodo',
+    'banner_url',
+    'rubro',
     'activa',
     'local_id',
   ]
@@ -75,7 +79,7 @@ export async function updatePromo(id, payload) {
     .from('promos')
     .update(updates)
     .eq('id', id)
-    .select(PROMO_SELECT)
+    .select('*')
     .single()
 
   if (error || !data) {
