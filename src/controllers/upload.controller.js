@@ -1,7 +1,7 @@
 import { uploadLogo, uploadBanner } from '../services/upload.service.js'
 import { AppError } from '../utils/AppError.js'
 
-const ALLOWED_BANNER_TYPES = ['image/png', 'image/jpeg', 'image/webp']
+const ALLOWED_BANNER_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
 
 export async function upload(req, res) {
   const file = req.file
@@ -17,7 +17,7 @@ export async function upload(req, res) {
     url = await uploadLogo(file)
   } else if (tipo === 'banner') {
     if (!ALLOWED_BANNER_TYPES.includes(file.mimetype)) {
-      throw new AppError('El banner debe ser PNG, JPG o WebP', 400)
+      throw new AppError('El banner debe ser PNG, JPG, WebP o SVG', 400)
     }
     url = await uploadBanner(file)
   } else {
