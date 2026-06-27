@@ -11,6 +11,8 @@ router.use(authenticate)
 
 router.patch('/me', asyncHandler(usuariosController.updateMe))
 
+router.get('/codigo/:codigo', authorize(ROLES.ADMIN, ROLES.LOCAL), asyncHandler(usuariosController.getByCodigo))
+
 router.get('/', authorize(ROLES.ADMIN), asyncHandler(usuariosController.list))
 router.get('/:id', authorize(ROLES.ADMIN), asyncHandler(usuariosController.getById))
 router.post('/', authorize(ROLES.ADMIN), asyncHandler(usuariosController.create))

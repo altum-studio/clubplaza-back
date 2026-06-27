@@ -79,6 +79,17 @@ export async function updateLocal(id, payload) {
     throw new AppError('No se pudo actualizar el local', 500, error)
   }
 
+  if (updates.rubro !== undefined) {
+    const { error: promosError } = await supabaseAdmin
+      .from('promos')
+      .update({ rubro: updates.rubro })
+      .eq('local_id', id)
+
+    if (promosError) {
+      throw new AppError('No se pudo sincronizar el rubro de las promos', 500, promosError)
+    }
+  }
+
   return data
 }
 

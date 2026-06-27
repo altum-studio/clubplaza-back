@@ -83,3 +83,13 @@ export async function updateMe(req, res) {
   const usuario = await usuariosService.updateUsuario(req.auth.profile.id, updates)
   res.json(usuario)
 }
+
+export async function getByCodigo(req, res) {
+  const miembro = await usuariosService.getMiembroByCodigo(req.params.codigo)
+
+  if (!miembro.activo) {
+    throw new AppError('Miembro inactivo', 409)
+  }
+
+  res.json(miembro)
+}

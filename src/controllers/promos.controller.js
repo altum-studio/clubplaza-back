@@ -2,10 +2,13 @@ import * as promosService from '../services/promos.service.js'
 import { getLocalById } from '../services/locales.service.js'
 import { resolveImageUrl } from '../services/upload.service.js'
 import { AppError } from '../utils/AppError.js'
-import { TIPOS_BENEFICIO, LIMITE_PERIODO } from '../constants/enums.js'
+import { canViewInactivePromo, resolveActiveFilter } from '../utils/access.js'
+import { validatePromoFields } from '../utils/validators.js'
 
 export async function list(req, res) {
-  const { local_id, activa, rubro, limit, offset } = req.query
+  const { local_id, rubro, limit, offset } = req.query
+  const activa = resolveActiveFilter(req, req.query.activa)
+
   const result = await promosService.listPromos({
     local_id,
     activa,
@@ -18,47 +21,18 @@ export async function list(req, res) {
 
 export async function getById(req, res) {
   const promo = await promosService.getPromoById(req.params.id)
+
+  if (!canViewInactivePromo(req, promo)) {
+    throw new AppError('Promo no encontrada', 404)
+  }
+
   res.json(promo)
 }
 
-const TIPOS_CON_VALOR = ['descuento', 'descuento_fijo', 'cuotas', 'bonificacion']
+async function buildPromoPayload(body, localId) {
+  const local = await getLocalById(localId)
 
-function validatePromoFields({ tipo, valor, dias, vigencia_desde, vigencia_hasta, limite_cantidad, limite_periodo }) {
-  if (!tipo) throw new AppError('tipo es requerido', 400)
-  if (!TIPOS_BENEFICIO.includes(tipo)) {
-    throw new AppError(`tipo inválido. Opciones: ${TIPOS_BENEFICIO.join(', ')}`, 400)
-  }
-
-  if (TIPOS_CON_VALOR.includes(tipo) && (valor === undefined || valor === null)) {
-    throw new AppError(`valor es requerido para el tipo "${tipo}"`, 400)
-  }
-
-  if (!dias || !Array.isArray(dias) || dias.length === 0) {
-    throw new AppError('dias es requerido (al menos un día)', 400)
-  }
-
-  // vigencia: ambas null (indefinida) o ambas presentes y válidas
-  if (vigencia_desde === null && vigencia_hasta === null) {
-    // indefinida, ok
-  } else if (vigencia_desde && vigencia_hasta) {
-    if (new Date(vigencia_hasta) < new Date(vigencia_desde)) {
-      throw new AppError('vigencia_hasta debe ser igual o posterior a vigencia_desde', 400)
-    }
-  } else if (vigencia_desde || vigencia_hasta) {
-    throw new AppError('vigencia_desde y vigencia_hasta deben enviarse juntas o ambas como null', 400)
-  }
-
-  if (limite_cantidad != null && !limite_periodo) {
-    throw new AppError('limite_periodo es requerido cuando se define limite_cantidad', 400)
-  }
-  if (limite_periodo && !LIMITE_PERIODO.includes(limite_periodo)) {
-    throw new AppError(`limite_periodo inválido. Opciones: ${LIMITE_PERIODO.join(', ')}`, 400)
-  }
-}
-
-export async function create(req, res) {
   const {
-    local_id: bodyLocalId,
     titulo,
     tipo,
     valor,
@@ -70,23 +44,19 @@ export async function create(req, res) {
     limite_periodo,
     banner_url,
     activa,
-  } = req.body
+  } = body
 
-  const { profile } = req.auth
-  const localId = profile.rol === 'local' ? profile.local_id : bodyLocalId
+  validatePromoFields({
+    tipo,
+    valor,
+    dias,
+    vigencia_desde,
+    vigencia_hasta,
+    limite_cantidad,
+    limite_periodo,
+  })
 
-  if (!localId) throw new AppError('local_id es requerido', 400)
-  if (!titulo) throw new AppError('titulo es requerido', 400)
-
-  if (profile.rol === 'local' && bodyLocalId && bodyLocalId !== profile.local_id) {
-    throw new AppError('Solo podés crear promos para tu local', 403)
-  }
-
-  validatePromoFields({ tipo, valor, dias, vigencia_desde, vigencia_hasta, limite_cantidad, limite_periodo })
-
-  const local = await getLocalById(localId)
-
-  const promo = await promosService.createPromo({
+  return {
     local_id: localId,
     rubro: local.rubro,
     titulo: titulo.trim(),
@@ -94,13 +64,29 @@ export async function create(req, res) {
     valor: valor ?? null,
     descripcion: descripcion ?? null,
     dias,
-    vigencia_desde: vigencia_desde ?? null,
-    vigencia_hasta: vigencia_hasta ?? null,
+    vigencia_desde,
+    vigencia_hasta,
     limite_cantidad: limite_cantidad ?? null,
     limite_periodo: limite_periodo ?? 'ilimitado',
     banner_url: await resolveImageUrl(banner_url, 'banners'),
     activa: activa ?? true,
-  })
+  }
+}
+
+export async function create(req, res) {
+  const { local_id: bodyLocalId, titulo } = req.body
+  const { profile } = req.auth
+  const localId = profile.rol === 'local' ? profile.local_id : bodyLocalId
+
+  if (!localId) throw new AppError('local_id es requerido', 400)
+  if (!titulo?.trim()) throw new AppError('titulo es requerido', 400)
+
+  if (profile.rol === 'local' && bodyLocalId && bodyLocalId !== profile.local_id) {
+    throw new AppError('Solo podés crear promos para tu local', 403)
+  }
+
+  const payload = await buildPromoPayload(req.body, localId)
+  const promo = await promosService.createPromo(payload)
 
   res.status(201).json(promo)
 }
@@ -117,21 +103,46 @@ async function assertPromoOwnership(req) {
   }
 }
 
+async function buildPromoUpdatePayload(body, currentPromo) {
+  const merged = {
+    titulo: body.titulo ?? currentPromo.titulo,
+    tipo: body.tipo ?? currentPromo.tipo,
+    valor: body.valor !== undefined ? body.valor : currentPromo.valor,
+    descripcion: body.descripcion !== undefined ? body.descripcion : currentPromo.descripcion,
+    dias: body.dias ?? currentPromo.dias,
+    vigencia_desde: body.vigencia_desde ?? currentPromo.vigencia_desde,
+    vigencia_hasta: body.vigencia_hasta ?? currentPromo.vigencia_hasta,
+    limite_cantidad: body.limite_cantidad !== undefined ? body.limite_cantidad : currentPromo.limite_cantidad,
+    limite_periodo: body.limite_periodo !== undefined ? body.limite_periodo : currentPromo.limite_periodo,
+    activa: body.activa !== undefined ? body.activa : currentPromo.activa,
+  }
+
+  validatePromoFields(merged)
+
+  const updates = { ...body }
+  delete updates.rubro
+
+  if (body.titulo !== undefined) updates.titulo = body.titulo.trim()
+  if (body.local_id !== undefined) {
+    const local = await getLocalById(body.local_id)
+    updates.local_id = body.local_id
+    updates.rubro = local.rubro
+  }
+
+  if (body.banner_url !== undefined) {
+    updates.banner_url = await resolveImageUrl(body.banner_url, 'banners')
+  }
+
+  return updates
+}
+
 export async function update(req, res) {
   await assertPromoOwnership(req)
 
-  const { tipo, limite_periodo } = req.body
-  if (tipo && !TIPOS_BENEFICIO.includes(tipo)) {
-    throw new AppError(`tipo inválido. Opciones: ${TIPOS_BENEFICIO.join(', ')}`, 400)
-  }
-  if (limite_periodo && !LIMITE_PERIODO.includes(limite_periodo)) {
-    throw new AppError(`limite_periodo inválido. Opciones: ${LIMITE_PERIODO.join(', ')}`, 400)
-  }
+  const currentPromo = await promosService.getPromoById(req.params.id)
+  const updates = await buildPromoUpdatePayload(req.body, currentPromo)
 
-  const body = { ...req.body }
-  if (body.banner_url) body.banner_url = await resolveImageUrl(body.banner_url, 'banners')
-
-  const promo = await promosService.updatePromo(req.params.id, body)
+  const promo = await promosService.updatePromo(req.params.id, updates)
   res.json(promo)
 }
 
@@ -145,42 +156,10 @@ export async function createMine(req, res) {
   const { local_id: localId } = req.auth.profile
 
   if (!localId) throw new AppError('Tu usuario no tiene un local asignado', 404)
+  if (!req.body.titulo?.trim()) throw new AppError('titulo es requerido', 400)
 
-  const {
-    titulo,
-    tipo,
-    valor,
-    descripcion,
-    dias,
-    vigencia_desde,
-    vigencia_hasta,
-    limite_cantidad,
-    limite_periodo,
-    banner_url,
-    activa,
-  } = req.body
-
-  if (!titulo?.trim()) throw new AppError('titulo es requerido', 400)
-
-  validatePromoFields({ tipo, valor, dias, vigencia_desde, vigencia_hasta, limite_cantidad, limite_periodo })
-
-  const local = await getLocalById(localId)
-
-  const promo = await promosService.createPromo({
-    local_id: localId,
-    rubro: local.rubro,
-    titulo: titulo.trim(),
-    tipo,
-    valor: valor ?? null,
-    descripcion: descripcion ?? null,
-    dias,
-    vigencia_desde: vigencia_desde ?? null,
-    vigencia_hasta: vigencia_hasta ?? null,
-    limite_cantidad: limite_cantidad ?? null,
-    limite_periodo: limite_periodo ?? 'ilimitado',
-    banner_url: await resolveImageUrl(banner_url, 'banners'),
-    activa: activa ?? true,
-  })
+  const payload = await buildPromoPayload(req.body, localId)
+  const promo = await promosService.createPromo(payload)
 
   res.status(201).json(promo)
 }
@@ -193,7 +172,7 @@ export async function listMine(req, res) {
   const { activa, limit, offset } = req.query
   const result = await promosService.listPromos({
     local_id: localId,
-    activa,
+    activa: activa !== undefined ? (activa === true || activa === 'true') : undefined,
     limit: limit ? Number(limit) : undefined,
     offset: offset ? Number(offset) : undefined,
   })

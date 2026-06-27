@@ -2,6 +2,7 @@ import { supabaseAuth, supabaseAdmin } from '../config/supabase.js'
 import { ROLES } from '../constants/roles.js'
 import { assertRequiredProfileFields } from '../constants/usuario.js'
 import { AppError } from '../utils/AppError.js'
+import { generateUniqueMemberCode } from '../utils/codigo.js'
 import { sendWelcomeEmail } from './email.service.js'
 
 export async function register(payload) {
@@ -64,6 +65,7 @@ export async function register(payload) {
       telefono,
       rol,
       local_id,
+      codigo: await generateUniqueMemberCode(),
     })
     .select()
     .single()

@@ -1,8 +1,11 @@
 import { supabaseAdmin } from '../config/supabase.js'
 import { pickAllowedFields, USUARIO_UPDATE_FIELDS } from '../constants/usuario.js'
 import { AppError } from '../utils/AppError.js'
+import { generateUniqueMemberCode, normalizeCodigo } from '../utils/codigo.js'
 
 const USUARIO_SELECT = '*, locales(id, nombre)'
+
+const MIEMBRO_PUBLIC_SELECT = 'id, nombre, apellido, codigo, dni, activo, created_at'
 
 export async function listUsuarios({ rol, local_id, limit = 50, offset = 0 } = {}) {
   let query = supabaseAdmin
@@ -37,6 +40,56 @@ export async function getUsuarioById(id) {
   return data
 }
 
+export async function getMiembroByCodigo(codigo) {
+  const normalized = normalizeCodigo(codigo)
+
+  if (!normalized) {
+    throw new AppError('codigo es requerido', 400)
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('usuarios')
+    .select(MIEMBRO_PUBLIC_SELECT)
+    .eq('codigo', normalized)
+    .maybeSingle()
+
+  if (error) {
+    throw new AppError('No se pudo buscar el miembro', 500, error)
+  }
+
+  if (!data) {
+    throw new AppError('Miembro no encontrado', 404)
+  }
+
+  return data
+}
+
+export async function resolveMiembro({ codigo, usuario_id }) {
+  if (codigo) {
+    return getMiembroByCodigo(codigo)
+  }
+
+  if (usuario_id) {
+    const { data, error } = await supabaseAdmin
+      .from('usuarios')
+      .select(MIEMBRO_PUBLIC_SELECT)
+      .eq('id', usuario_id)
+      .maybeSingle()
+
+    if (error) {
+      throw new AppError('No se pudo buscar el miembro', 500, error)
+    }
+
+    if (!data) {
+      throw new AppError('Miembro no encontrado', 404)
+    }
+
+    return data
+  }
+
+  throw new AppError('codigo o usuario_id es requerido', 400)
+}
+
 export async function createUsuario(payload) {
   const {
     email,
@@ -61,6 +114,7 @@ export async function createUsuario(payload) {
   }
 
   const userId = authData.user.id
+  const codigo = await generateUniqueMemberCode()
 
   const { data, error } = await supabaseAdmin
     .from('usuarios')
@@ -74,6 +128,7 @@ export async function createUsuario(payload) {
       telefono,
       rol,
       local_id,
+      codigo,
     })
     .select(USUARIO_SELECT)
     .single()

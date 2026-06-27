@@ -1,8 +1,10 @@
 import { supabaseAdmin } from '../config/supabase.js'
+import { env } from '../config/env.js'
 import { AppError } from '../utils/AppError.js'
 
 const LOGO_MAX_BYTES = 512 * 1024 // 512 KB
 const BANNER_MAX_BYTES = 2 * 1024 * 1024 // 2 MB
+const BANNER_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 
 function sanitizeSvg(buffer) {
   let svg = buffer.toString('utf8')
@@ -21,76 +23,98 @@ function isSvgText(value) {
   return trimmed.startsWith('<svg') || trimmed.startsWith('<?xml')
 }
 
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/** Acepta URLs generadas por POST /api/upload en el bucket correspondiente. */
+export function isStorageUrl(value, bucket) {
+  if (!value || typeof value !== 'string') return false
+
+  const base = escapeRegex(env.supabase.url)
+  const pattern = new RegExp(`^${base}/storage/v1/object/public/${bucket}/`)
+  return pattern.test(value)
+}
+
+async function uploadBuffer(buffer, bucket, contentType, filename) {
+  const maxBytes = bucket === 'logos' ? LOGO_MAX_BYTES : BANNER_MAX_BYTES
+  const maxLabel = bucket === 'logos' ? '512 KB' : '2 MB'
+
+  if (buffer.length > maxBytes) {
+    throw new AppError(`La imagen no puede superar ${maxLabel}`, 400)
+  }
+
+  const { error } = await supabaseAdmin.storage
+    .from(bucket)
+    .upload(filename, buffer, { contentType, upsert: false })
+
+  if (error) throw new AppError('No se pudo subir la imagen', 500, error)
+
+  const { data } = supabaseAdmin.storage.from(bucket).getPublicUrl(filename)
+  return data.publicUrl
+}
+
 /**
- * Si el valor es un data URI base64, SVG crudo o data URI SVG sin base64,
- * lo sube al bucket indicado y devuelve la URL pública.
- * Si ya es una URL (o null), lo devuelve sin tocar.
+ * Sube SVG/imagen embebida o acepta URL del bucket propio.
+ * Rechaza URLs externas pegadas manualmente.
  */
 export async function resolveImageUrl(value, bucket) {
   if (!value) return null
 
-  // SVG enviado como texto crudo (<svg>...</svg> o <?xml ...>)
-  if (isSvgText(value)) {
-    const buffer = sanitizeSvg(Buffer.from(value, 'utf8'))
-    const maxBytes = bucket === 'logos' ? LOGO_MAX_BYTES : BANNER_MAX_BYTES
-    const maxLabel = bucket === 'logos' ? '512 KB' : '2 MB'
-    if (buffer.length > maxBytes) throw new AppError(`La imagen no puede superar ${maxLabel}`, 400)
+  if (bucket === 'logos') {
+    if (isSvgText(value)) {
+      const buffer = sanitizeSvg(Buffer.from(value, 'utf8'))
+      return uploadBuffer(buffer, bucket, 'image/svg+xml', safeFilename('upload.svg'))
+    }
 
-    const filename = safeFilename('upload.svg')
-    const { error } = await supabaseAdmin.storage
-      .from(bucket)
-      .upload(filename, buffer, { contentType: 'image/svg+xml', upsert: false })
-    if (error) throw new AppError('No se pudo subir la imagen SVG', 500, error)
+    if (value.startsWith('data:image/svg+xml,')) {
+      const svgContent = decodeURIComponent(value.slice('data:image/svg+xml,'.length))
+      const buffer = sanitizeSvg(Buffer.from(svgContent, 'utf8'))
+      return uploadBuffer(buffer, bucket, 'image/svg+xml', safeFilename('upload.svg'))
+    }
 
-    const { data } = supabaseAdmin.storage.from(bucket).getPublicUrl(filename)
-    return data.publicUrl
+    if (value.startsWith('data:')) {
+      const match = value.match(/^data:([^;]+);base64,(.+)$/)
+      if (!match) throw new AppError('Formato de imagen inválido', 400)
+
+      const [, mimeType, b64] = match
+      if (mimeType !== 'image/svg+xml') {
+        throw new AppError('El logo debe ser un archivo SVG (image/svg+xml)', 400)
+      }
+
+      const buffer = sanitizeSvg(Buffer.from(b64, 'base64'))
+      return uploadBuffer(buffer, bucket, mimeType, safeFilename('upload.svg'))
+    }
+
+    if (isStorageUrl(value, bucket)) return value
+
+    throw new AppError(
+      'logo_url debe ser un SVG subido o la URL devuelta por POST /api/upload?tipo=logo',
+      400
+    )
   }
 
-  // data URI SVG sin base64: data:image/svg+xml,<svg...>
-  if (value.startsWith('data:image/svg+xml,')) {
-    const svgContent = decodeURIComponent(value.slice('data:image/svg+xml,'.length))
-    const buffer = sanitizeSvg(Buffer.from(svgContent, 'utf8'))
-    const maxBytes = bucket === 'logos' ? LOGO_MAX_BYTES : BANNER_MAX_BYTES
-    const maxLabel = bucket === 'logos' ? '512 KB' : '2 MB'
-    if (buffer.length > maxBytes) throw new AppError(`La imagen no puede superar ${maxLabel}`, 400)
-
-    const filename = safeFilename('upload.svg')
-    const { error } = await supabaseAdmin.storage
-      .from(bucket)
-      .upload(filename, buffer, { contentType: 'image/svg+xml', upsert: false })
-    if (error) throw new AppError('No se pudo subir la imagen SVG', 500, error)
-
-    const { data } = supabaseAdmin.storage.from(bucket).getPublicUrl(filename)
-    return data.publicUrl
-  }
-
-  // data URI base64 (cualquier tipo de imagen)
+  // banners
   if (value.startsWith('data:')) {
     const match = value.match(/^data:([^;]+);base64,(.+)$/)
     if (!match) throw new AppError('Formato de imagen inválido', 400)
 
     const [, mimeType, b64] = match
+    if (!BANNER_MIME_TYPES.includes(mimeType)) {
+      throw new AppError('El banner debe ser PNG, JPG o WebP', 400)
+    }
+
     const buffer = Buffer.from(b64, 'base64')
-
-    const maxBytes = bucket === 'logos' ? LOGO_MAX_BYTES : BANNER_MAX_BYTES
-    const maxLabel = bucket === 'logos' ? '512 KB' : '2 MB'
-    if (buffer.length > maxBytes) throw new AppError(`La imagen no puede superar ${maxLabel}`, 400)
-
-    const finalBuffer = mimeType === 'image/svg+xml' ? sanitizeSvg(buffer) : buffer
-    const ext = mimeType.split('/')[1].replace('jpeg', 'jpg').replace('svg+xml', 'svg')
-    const filename = safeFilename(`upload.${ext}`)
-
-    const { error } = await supabaseAdmin.storage
-      .from(bucket)
-      .upload(filename, finalBuffer, { contentType: mimeType, upsert: false })
-    if (error) throw new AppError('No se pudo subir la imagen', 500, error)
-
-    const { data } = supabaseAdmin.storage.from(bucket).getPublicUrl(filename)
-    return data.publicUrl
+    const ext = mimeType.split('/')[1].replace('jpeg', 'jpg')
+    return uploadBuffer(buffer, bucket, mimeType, safeFilename(`upload.${ext}`))
   }
 
-  // Ya es una URL, devolver sin cambios
-  return value
+  if (isStorageUrl(value, bucket)) return value
+
+  throw new AppError(
+    'banner_url debe ser una imagen subida o la URL devuelta por POST /api/upload?tipo=banner',
+    400
+  )
 }
 
 export async function uploadLogo(file) {
@@ -99,16 +123,7 @@ export async function uploadLogo(file) {
   }
 
   const buffer = sanitizeSvg(file.buffer)
-  const filename = safeFilename(file.originalname)
-
-  const { error } = await supabaseAdmin.storage
-    .from('logos')
-    .upload(filename, buffer, { contentType: 'image/svg+xml', upsert: false })
-
-  if (error) throw new AppError('No se pudo subir el logo', 500, error)
-
-  const { data } = supabaseAdmin.storage.from('logos').getPublicUrl(filename)
-  return data.publicUrl
+  return uploadBuffer(buffer, 'logos', 'image/svg+xml', safeFilename(file.originalname))
 }
 
 export async function uploadBanner(file) {
@@ -116,16 +131,9 @@ export async function uploadBanner(file) {
     throw new AppError('El banner no puede superar 2 MB', 400)
   }
 
-  const isSvg = file.mimetype === 'image/svg+xml'
-  const buffer = isSvg ? sanitizeSvg(file.buffer) : file.buffer
-  const filename = safeFilename(file.originalname)
+  if (!BANNER_MIME_TYPES.includes(file.mimetype)) {
+    throw new AppError('El banner debe ser PNG, JPG o WebP', 400)
+  }
 
-  const { error } = await supabaseAdmin.storage
-    .from('banners')
-    .upload(filename, buffer, { contentType: file.mimetype, upsert: false })
-
-  if (error) throw new AppError('No se pudo subir el banner', 500, error)
-
-  const { data } = supabaseAdmin.storage.from('banners').getPublicUrl(filename)
-  return data.publicUrl
+  return uploadBuffer(file.buffer, 'banners', file.mimetype, safeFilename(file.originalname))
 }

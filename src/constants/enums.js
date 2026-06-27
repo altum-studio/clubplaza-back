@@ -20,3 +20,5 @@ export const TIPOS_BENEFICIO = [
 ]
 
 export const LIMITE_PERIODO = ['dia', 'semana', 'mes', 'vigencia', 'ilimitado']
+
+export const CANJE_ESTADO = ['ok', 'rechazado', 'repetido']

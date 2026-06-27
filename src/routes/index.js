@@ -4,6 +4,8 @@ import usuariosRoutes from './usuarios.routes.js'
 import localesRoutes from './locales.routes.js'
 import promosRoutes from './promos.routes.js'
 import uploadRoutes from './upload.routes.js'
+import canjesRoutes from './canjes.routes.js'
+import escaneosRoutes from './escaneos.routes.js'
 
 export const apiRouter = Router()
 
@@ -12,3 +14,5 @@ apiRouter.use('/usuarios', usuariosRoutes)
 apiRouter.use('/locales', localesRoutes)
 apiRouter.use('/promos', promosRoutes)
 apiRouter.use('/upload', uploadRoutes)
+apiRouter.use('/canjes', canjesRoutes)
+apiRouter.use('/escaneos', escaneosRoutes)
