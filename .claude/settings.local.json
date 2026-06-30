@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(npm install:*)",
-      "Skill(schedule)"
+      "Skill(schedule)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(xargs cat:*)",
+      "Bash(python3:*)"
     ]
   }
 }
