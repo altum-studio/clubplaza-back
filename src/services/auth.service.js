@@ -4,6 +4,7 @@ import { assertRequiredProfileFields } from '../constants/usuario.js'
 import { AppError } from '../utils/AppError.js'
 import { generateUniqueMemberCode } from '../utils/codigo.js'
 import { sendWelcomeEmail } from './email.service.js'
+import { env } from '../config/env.js'
 
 export async function register(payload) {
   const {
@@ -135,4 +136,30 @@ export async function refreshSession(refreshToken) {
   }
 
   return data.session
+}
+
+export async function forgotPassword({ email }) {
+  await supabaseAuth.auth.resetPasswordForEmail(email, {
+    redirectTo: `${env.appUrl}/restablecer`,
+  })
+}
+
+export async function resetPassword({ token, password }) {
+  if (!password || password.length < 6) {
+    throw new AppError('La contraseña debe tener al menos 6 caracteres', 400)
+  }
+
+  const { data: userData, error: getUserError } = await supabaseAdmin.auth.getUser(token)
+
+  if (getUserError || !userData?.user) {
+    throw new AppError('El enlace no es válido o expiró', 401)
+  }
+
+  const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userData.user.id, {
+    password,
+  })
+
+  if (updateError) {
+    throw new AppError('El enlace no es válido o expiró', 401)
+  }
 }

@@ -27,3 +27,17 @@ export async function refresh(req, res) {
   const session = await authService.refreshSession(refreshToken)
   res.json({ session })
 }
+
+export async function forgotPassword(req, res) {
+  const { email } = req.body
+  if (email) {
+    await authService.forgotPassword({ email }).catch(() => {})
+  }
+  res.json({ ok: true })
+}
+
+export async function resetPassword(req, res) {
+  const { token, password } = req.body
+  await authService.resetPassword({ token, password })
+  res.json({ ok: true })
+}

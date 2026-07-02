@@ -10,6 +10,7 @@ function requireEnv(name) {
 
 export const env = {
   port: Number(process.env.PORT) || 3000,
+  appUrl: requireEnv('APP_URL'),
   supabase: {
     url: requireEnv('SUPABASE_URL'),
     anonKey: requireEnv('SUPABASE_ANON_KEY'),
