@@ -4,7 +4,7 @@ import { RUBROS, TIPOS_BENEFICIO, LIMITE_PERIODO } from '../constants/enums.js'
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
-const TIPOS_REQUIEREN_VALOR = ['descuento', 'descuento_fijo', 'cuotas']
+const TIPOS_REQUIEREN_VALOR = ['descuento', 'cuotas']
 
 export function validateRubro(rubro) {
   if (!rubro) throw new AppError('rubro es requerido', 400)
@@ -109,6 +109,8 @@ export function validateVigencia(vigencia_desde, vigencia_hasta) {
 export function validatePromoFields({
   tipo,
   valor,
+  precio_anterior,
+  precio_nuevo,
   dias,
   vigencia_desde,
   vigencia_hasta,
@@ -118,6 +120,18 @@ export function validatePromoFields({
   if (!tipo) throw new AppError('tipo es requerido', 400)
   if (!TIPOS_BENEFICIO.includes(tipo)) {
     throw new AppError(`tipo inválido. Opciones: ${TIPOS_BENEFICIO.join(', ')}`, 400)
+  }
+
+  if (tipo === 'descuento_fijo') {
+    if (!precio_anterior || precio_anterior <= 0) {
+      throw new AppError('precio_anterior es requerido y debe ser mayor a 0 para el tipo "descuento_fijo"', 400)
+    }
+    if (!precio_nuevo || precio_nuevo <= 0) {
+      throw new AppError('precio_nuevo es requerido y debe ser mayor a 0 para el tipo "descuento_fijo"', 400)
+    }
+    if (precio_nuevo >= precio_anterior) {
+      throw new AppError('precio_nuevo debe ser menor que precio_anterior', 400)
+    }
   }
 
   if (TIPOS_REQUIEREN_VALOR.includes(tipo) && (valor === undefined || valor === null)) {

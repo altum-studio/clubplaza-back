@@ -57,6 +57,8 @@ export async function updatePromo(id, payload) {
     'descripcion',
     'tipo',
     'valor',
+    'precio_anterior',
+    'precio_nuevo',
     'dias',
     'vigencia_desde',
     'vigencia_hasta',
