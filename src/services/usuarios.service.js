@@ -3,7 +3,7 @@ import { pickAllowedFields, USUARIO_UPDATE_FIELDS } from '../constants/usuario.j
 import { AppError } from '../utils/AppError.js'
 import { generateUniqueMemberCode, normalizeCodigo } from '../utils/codigo.js'
 
-const USUARIO_SELECT = '*, locales(id, nombre), local_managers(local_id)'
+const USUARIO_SELECT = '*, locales!usuarios_local_id_fkey(id, nombre), local_managers(local_id)'
 
 function transformUsuario(data) {
   if (!data) return data
