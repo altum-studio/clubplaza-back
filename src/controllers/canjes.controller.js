@@ -1,29 +1,17 @@
 import * as canjesService from '../services/canjes.service.js'
 import { AppError } from '../utils/AppError.js'
 import { ROLES } from '../constants/roles.js'
-
-function getActorLocalId(req) {
-  const { profile } = req.auth
-
-  if (profile.rol === ROLES.LOCAL) {
-    if (!profile.local_id) {
-      throw new AppError('Tu usuario no tiene un local asignado', 404)
-    }
-    return profile.local_id
-  }
-
-  return null
-}
+import { resolveLocalId } from '../utils/access.js'
 
 export async function create(req, res) {
-  const { codigo, usuario_id, promo_id } = req.body
+  const { codigo, usuario_id, promo_id, local_id: bodyLocalId } = req.body
   const { profile } = req.auth
 
   if (!promo_id) throw new AppError('promo_id es requerido', 400)
   if (!codigo && !usuario_id) throw new AppError('codigo o usuario_id es requerido', 400)
 
   const isAdmin = profile.rol === ROLES.ADMIN
-  const actorLocalId = getActorLocalId(req)
+  const actorLocalId = resolveLocalId(req, bodyLocalId)
 
   if (!isAdmin && !actorLocalId) {
     throw new AppError('No tenés permisos para registrar canjes', 403)
@@ -57,7 +45,7 @@ export async function list(req, res) {
 }
 
 export async function listMine(req, res) {
-  const localId = getActorLocalId(req)
+  const localId = resolveLocalId(req, req.query.local_id)
   const { desde, hasta, estado, limit, offset } = req.query
 
   const result = await canjesService.listCanjes({
@@ -79,7 +67,7 @@ export async function stats(req, res) {
 }
 
 export async function statsMine(req, res) {
-  const localId = getActorLocalId(req)
+  const localId = resolveLocalId(req, req.query.local_id)
   const result = await canjesService.getCanjesStats({ local_id: localId })
   res.json(result)
 }

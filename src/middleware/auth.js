@@ -26,6 +26,13 @@ export async function authenticate(req, _res, next) {
       throw new AppError('Perfil de usuario no encontrado', 404)
     }
 
+    const { data: localManagerRows } = await supabaseAdmin
+      .from('local_managers')
+      .select('local_id')
+      .eq('usuario_id', user.id)
+
+    profile.local_ids = (localManagerRows ?? []).map((r) => r.local_id)
+
     req.auth = {
       token,
       user,
@@ -60,6 +67,11 @@ export async function optionalAuthenticate(req, _res, next) {
       .single()
 
     if (profile) {
+      const { data: localManagerRows } = await supabaseAdmin
+        .from('local_managers')
+        .select('local_id')
+        .eq('usuario_id', user.id)
+      profile.local_ids = (localManagerRows ?? []).map((r) => r.local_id)
       req.auth = { token, user, profile }
     }
 

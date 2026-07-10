@@ -3,7 +3,37 @@ import { pickAllowedFields, USUARIO_UPDATE_FIELDS } from '../constants/usuario.j
 import { AppError } from '../utils/AppError.js'
 import { generateUniqueMemberCode, normalizeCodigo } from '../utils/codigo.js'
 
-const USUARIO_SELECT = '*, locales(id, nombre)'
+const USUARIO_SELECT = '*, locales(id, nombre), local_managers(local_id)'
+
+function transformUsuario(data) {
+  if (!data) return data
+  const { local_managers, ...rest } = data
+  return {
+    ...rest,
+    local_ids: (local_managers ?? []).map((m) => m.local_id),
+  }
+}
+
+async function syncLocalManagers(userId, localIds) {
+  const { error: deleteError } = await supabaseAdmin
+    .from('local_managers')
+    .delete()
+    .eq('usuario_id', userId)
+
+  if (deleteError) {
+    throw new AppError('No se pudo actualizar los locales del usuario', 500, deleteError)
+  }
+
+  if (!localIds?.length) return
+
+  const { error: insertError } = await supabaseAdmin
+    .from('local_managers')
+    .insert(localIds.map((localId) => ({ usuario_id: userId, local_id: localId })))
+
+  if (insertError) {
+    throw new AppError('No se pudo asignar los locales al usuario', 500, insertError)
+  }
+}
 
 const MIEMBRO_PUBLIC_SELECT = 'id, nombre, apellido, codigo, dni, activo, created_at'
 
@@ -23,7 +53,7 @@ export async function listUsuarios({ rol, local_id, limit = 50, offset = 0 } = {
     throw new AppError('No se pudieron obtener los usuarios', 500, error)
   }
 
-  return { data, count }
+  return { data: (data ?? []).map(transformUsuario), count }
 }
 
 export async function getUsuarioById(id) {
@@ -37,7 +67,7 @@ export async function getUsuarioById(id) {
     throw new AppError('Usuario no encontrado', 404)
   }
 
-  return data
+  return transformUsuario(data)
 }
 
 export async function getMiembroByCodigo(codigo) {
@@ -100,8 +130,22 @@ export async function createUsuario(payload) {
     dni,
     telefono,
     rol,
-    local_id = null,
+    local_id: payloadLocalId = null,
+    local_ids: payloadLocalIds,
   } = payload
+
+  // Determinar localIds y local_id principal
+  let localIds = payloadLocalIds ?? (payloadLocalId ? [payloadLocalId] : [])
+  let localId = localIds[0] ?? null
+
+  if (rol === 'local' && localIds.length === 0) {
+    throw new AppError('Un usuario local debe tener al menos un local asignado', 400)
+  }
+
+  if (rol !== 'local') {
+    localIds = []
+    localId = null
+  }
 
   const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
     email,
@@ -127,7 +171,7 @@ export async function createUsuario(payload) {
       dni,
       telefono,
       rol,
-      local_id,
+      local_id: localId,
       codigo,
     })
     .select(USUARIO_SELECT)
@@ -138,11 +182,33 @@ export async function createUsuario(payload) {
     throw new AppError('No se pudo crear el usuario', 500, error)
   }
 
-  return data
+  await syncLocalManagers(userId, localIds)
+
+  return transformUsuario(data)
 }
 
 export async function updateUsuario(id, payload) {
-  const updates = pickAllowedFields(payload, USUARIO_UPDATE_FIELDS)
+  const { local_ids: localIds, ...rest } = payload
+  const updates = pickAllowedFields(rest, USUARIO_UPDATE_FIELDS)
+
+  const targetRol = updates.rol
+
+  if (targetRol === 'local') {
+    // Cambiando a rol local: requiere local_ids
+    const ids = localIds ?? []
+    if (!ids.length) throw new AppError('Un usuario local debe tener al menos un local asignado', 400)
+    updates.local_id = ids[0]
+    await syncLocalManagers(id, ids)
+  } else if (targetRol && targetRol !== 'local') {
+    // Cambiando a rol no-local: limpiar locales
+    updates.local_id = null
+    await syncLocalManagers(id, [])
+  } else if (localIds !== undefined) {
+    // Sin cambio de rol, actualizando local_ids para usuario local
+    if (!localIds.length) throw new AppError('Un usuario local debe tener al menos un local asignado', 400)
+    updates.local_id = localIds[0]
+    await syncLocalManagers(id, localIds)
+  }
 
   if (Object.keys(updates).length === 0) {
     throw new AppError('No hay campos válidos para actualizar', 400)
@@ -159,7 +225,7 @@ export async function updateUsuario(id, payload) {
     throw new AppError('No se pudo actualizar el usuario', 500, error)
   }
 
-  return data
+  return transformUsuario(data)
 }
 
 export async function deleteUsuario(id) {

@@ -93,6 +93,33 @@ export async function updateLocal(id, payload) {
   return data
 }
 
+export async function getLocalesByUserId(userId) {
+  const { data: managerRows, error: managerError } = await supabaseAdmin
+    .from('local_managers')
+    .select('local_id')
+    .eq('usuario_id', userId)
+
+  if (managerError) {
+    throw new AppError('No se pudieron obtener los locales', 500, managerError)
+  }
+
+  const localIds = (managerRows ?? []).map((r) => r.local_id)
+
+  if (!localIds.length) return []
+
+  const { data, error } = await supabaseAdmin
+    .from('locales')
+    .select('*')
+    .in('id', localIds)
+    .order('nombre', { ascending: true })
+
+  if (error) {
+    throw new AppError('No se pudieron obtener los locales', 500, error)
+  }
+
+  return data ?? []
+}
+
 export async function deleteLocal(id) {
   const { data, error } = await supabaseAdmin
     .from('locales')

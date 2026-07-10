@@ -8,6 +8,7 @@ import * as localesController from '../controllers/locales.controller.js'
 const router = Router()
 
 router.get('/', optionalAuthenticate, asyncHandler(localesController.list))
+router.get('/mias', authenticate, authorize(ROLES.LOCAL), asyncHandler(localesController.getMias))
 router.get('/mine/mi-local', authenticate, authorize(ROLES.LOCAL), asyncHandler(localesController.getMine))
 router.patch('/mine/mi-local', authenticate, authorize(ROLES.LOCAL), asyncHandler(localesController.updateMine))
 router.post('/', authenticate, authorize(ROLES.ADMIN), asyncHandler(localesController.create))

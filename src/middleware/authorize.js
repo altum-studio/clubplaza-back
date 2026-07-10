@@ -29,7 +29,7 @@ export function authorizeLocalOwnership(getLocalId) {
     }
 
     const localId = getLocalId(req)
-    if (profile.local_id !== localId) {
+    if (!(profile.local_ids ?? []).includes(localId)) {
       return next(new AppError('Solo podés gestionar tu propio local', 403))
     }
 

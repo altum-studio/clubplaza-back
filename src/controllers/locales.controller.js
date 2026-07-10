@@ -76,10 +76,15 @@ export async function create(req, res) {
   res.status(201).json(local)
 }
 
+export async function getMias(req, res) {
+  const locales = await localesService.getLocalesByUserId(req.auth.profile.id)
+  res.json(locales)
+}
+
 export async function update(req, res) {
   const { profile } = req.auth
 
-  if (profile.rol === 'local' && profile.local_id !== req.params.id) {
+  if (profile.rol === 'local' && !(profile.local_ids ?? []).includes(req.params.id)) {
     throw new AppError('Solo podés actualizar tu propio local', 403)
   }
 

@@ -6,6 +6,15 @@ import { generateUniqueMemberCode } from '../utils/codigo.js'
 import { sendWelcomeEmail } from './email.service.js'
 import { env } from '../config/env.js'
 
+async function enrichWithLocalIds(profile) {
+  const { data } = await supabaseAdmin
+    .from('local_managers')
+    .select('local_id')
+    .eq('usuario_id', profile.id)
+  profile.local_ids = (data ?? []).map((r) => r.local_id)
+  return profile
+}
+
 export async function register(payload) {
   const {
     email,
@@ -83,7 +92,7 @@ export async function register(payload) {
   return {
     user: authData.user,
     session: authData.session,
-    profile,
+    profile: await enrichWithLocalIds(profile),
   }
 }
 
@@ -110,7 +119,7 @@ export async function login({ email, password }) {
   return {
     user: data.user,
     session: data.session,
-    profile,
+    profile: await enrichWithLocalIds(profile),
   }
 }
 

@@ -1,18 +1,9 @@
 import * as escaneosService from '../services/escaneos.service.js'
 import { AppError } from '../utils/AppError.js'
-
-function getLocalId(req) {
-  const { local_id: localId } = req.auth.profile
-
-  if (!localId) {
-    throw new AppError('Tu usuario no tiene un local asignado', 404)
-  }
-
-  return localId
-}
+import { resolveLocalId } from '../utils/access.js'
 
 export async function create(req, res) {
-  const { codigo } = req.body
+  const { codigo, local_id: bodyLocalId } = req.body
 
   if (!codigo?.trim()) {
     throw new AppError('codigo es requerido', 400)
@@ -20,17 +11,17 @@ export async function create(req, res) {
 
   const result = await escaneosService.registerEscaneo({
     codigo,
-    localId: getLocalId(req),
+    localId: resolveLocalId(req, bodyLocalId),
   })
 
   res.status(201).json(result)
 }
 
 export async function listMine(req, res) {
-  const { desde, hasta, limit, offset } = req.query
+  const { desde, hasta, limit, offset, local_id: queryLocalId } = req.query
 
   const result = await escaneosService.listEscaneos({
-    local_id: getLocalId(req),
+    local_id: resolveLocalId(req, queryLocalId),
     desde,
     hasta,
     limit: limit ? Number(limit) : undefined,

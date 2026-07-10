@@ -2,7 +2,7 @@ import * as promosService from '../services/promos.service.js'
 import { getLocalById } from '../services/locales.service.js'
 import { resolveImageUrl } from '../services/upload.service.js'
 import { AppError } from '../utils/AppError.js'
-import { canViewInactivePromo, resolveActiveFilter } from '../utils/access.js'
+import { canViewInactivePromo, resolveActiveFilter, resolveLocalId } from '../utils/access.js'
 import { validatePromoFields } from '../utils/validators.js'
 
 export async function list(req, res) {
@@ -81,15 +81,10 @@ async function buildPromoPayload(body, localId) {
 
 export async function create(req, res) {
   const { local_id: bodyLocalId, titulo } = req.body
-  const { profile } = req.auth
-  const localId = profile.rol === 'local' ? profile.local_id : bodyLocalId
+  const localId = resolveLocalId(req, bodyLocalId)
 
   if (!localId) throw new AppError('local_id es requerido', 400)
   if (!titulo?.trim()) throw new AppError('titulo es requerido', 400)
-
-  if (profile.rol === 'local' && bodyLocalId && bodyLocalId !== profile.local_id) {
-    throw new AppError('Solo podés crear promos para tu local', 403)
-  }
 
   const payload = await buildPromoPayload(req.body, localId)
   const promo = await promosService.createPromo(payload)
@@ -104,7 +99,7 @@ async function assertPromoOwnership(req) {
 
   const promo = await promosService.getPromoById(req.params.id)
 
-  if (promo.local_id !== profile.local_id) {
+  if (!(profile.local_ids ?? []).includes(promo.local_id)) {
     throw new AppError('Solo podés gestionar promos de tu local', 403)
   }
 }
@@ -161,9 +156,8 @@ export async function remove(req, res) {
 }
 
 export async function createMine(req, res) {
-  const { local_id: localId } = req.auth.profile
+  const localId = resolveLocalId(req, req.body.local_id)
 
-  if (!localId) throw new AppError('Tu usuario no tiene un local asignado', 404)
   if (!req.body.titulo?.trim()) throw new AppError('titulo es requerido', 400)
 
   const payload = await buildPromoPayload(req.body, localId)
@@ -173,9 +167,7 @@ export async function createMine(req, res) {
 }
 
 export async function listMine(req, res) {
-  const { local_id: localId } = req.auth.profile
-
-  if (!localId) throw new AppError('Tu usuario no tiene un local asignado', 404)
+  const localId = resolveLocalId(req, req.query.local_id)
 
   const { activa, limit, offset } = req.query
   const result = await promosService.listPromos({

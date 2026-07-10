@@ -29,6 +29,7 @@ export async function create(req, res) {
     telefono,
     rol,
     local_id,
+    local_ids,
   } = req.body
 
   const missingFields = assertRequiredProfileFields({
@@ -58,6 +59,7 @@ export async function create(req, res) {
     telefono,
     rol,
     local_id,
+    local_ids,
   })
 
   res.status(201).json(usuario)
