@@ -58,6 +58,10 @@ export async function register(payload) {
     throw new AppError(authError.message, 400)
   }
 
+  if (!authData.user?.identities?.length) {
+    throw new AppError('El email ya está registrado', 400)
+  }
+
   const userId = authData.user?.id
   if (!userId) {
     throw new AppError('No se pudo crear el usuario', 500)
