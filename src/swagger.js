@@ -370,6 +370,45 @@ export const swaggerSpec = {
         },
       },
     },
+    '/usuarios/altas': {
+      get: {
+        tags: ['Usuarios'],
+        summary: 'Estadísticas de altas de usuarios',
+        security: [{ bearerAuth: [] }],
+        description: 'Solo **admin**. Devuelve altas agrupadas por mes (últimos 12) o por día (últimos 7 días).',
+        parameters: [
+          {
+            in: 'query',
+            name: 'periodo',
+            required: true,
+            schema: { type: 'string', enum: ['mes', 'semana'] },
+            description: '"mes" → array de 12 elementos (YYYY-MM) | "semana" → array de 7 elementos (YYYY-MM-DD)',
+          },
+        ],
+        responses: {
+          200: {
+            description: 'Array de buckets con count (incluye los vacíos)',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      periodo: { type: 'string', example: '2026-07' },
+                      count: { type: 'integer', example: 14 },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: 'periodo inválido' },
+          401: { description: 'No autenticado' },
+          403: { description: 'Sin permisos' },
+        },
+      },
+    },
     '/usuarios/me': {
       patch: {
         tags: ['Usuarios'],

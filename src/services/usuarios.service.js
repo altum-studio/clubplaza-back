@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js'
 import { pickAllowedFields, USUARIO_UPDATE_FIELDS } from '../constants/usuario.js'
 import { AppError } from '../utils/AppError.js'
 import { generateUniqueMemberCode, normalizeCodigo } from '../utils/codigo.js'
+import { getArgentinaDateString, getLastNDaysDateStrings } from '../utils/date.js'
 
 const USUARIO_SELECT = '*, locales!usuarios_local_id_fkey(id, nombre), local_managers(local_id)'
 
@@ -226,6 +227,64 @@ export async function updateUsuario(id, payload) {
   }
 
   return transformUsuario(data)
+}
+
+export async function getAltasStats(periodo) {
+  const now = new Date()
+
+  if (periodo === 'semana') {
+    const days = getLastNDaysDateStrings(7, now)
+    const startDate = `${days[0]}T03:00:00.000Z`
+
+    const { data, error } = await supabaseAdmin
+      .from('usuarios')
+      .select('created_at')
+      .gte('created_at', startDate)
+
+    if (error) throw new AppError('No se pudieron obtener las estadísticas', 500, error)
+
+    const counts = Object.fromEntries(days.map((d) => [d, 0]))
+    for (const row of data ?? []) {
+      const dayStr = getArgentinaDateString(new Date(row.created_at))
+      if (dayStr in counts) counts[dayStr]++
+    }
+
+    return days.map((d) => ({ periodo: d, count: counts[d] }))
+  }
+
+  if (periodo === 'mes') {
+    const argNow = getArgentinaDateString(now)
+    const [yearStr, monthStr] = argNow.split('-')
+    const year = Number(yearStr)
+    const month = Number(monthStr)
+
+    const months = []
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(Date.UTC(year, month - 1 - i, 1))
+      months.push(
+        `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+      )
+    }
+
+    const startDate = `${months[0]}-01T03:00:00.000Z`
+
+    const { data, error } = await supabaseAdmin
+      .from('usuarios')
+      .select('created_at')
+      .gte('created_at', startDate)
+
+    if (error) throw new AppError('No se pudieron obtener las estadísticas', 500, error)
+
+    const counts = Object.fromEntries(months.map((m) => [m, 0]))
+    for (const row of data ?? []) {
+      const mStr = getArgentinaDateString(new Date(row.created_at)).slice(0, 7)
+      if (mStr in counts) counts[mStr]++
+    }
+
+    return months.map((m) => ({ periodo: m, count: counts[m] }))
+  }
+
+  throw new AppError('periodo debe ser "mes" o "semana"', 400)
 }
 
 export async function deleteUsuario(id) {

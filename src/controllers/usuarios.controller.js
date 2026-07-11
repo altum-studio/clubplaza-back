@@ -86,6 +86,12 @@ export async function updateMe(req, res) {
   res.json(usuario)
 }
 
+export async function getAltas(req, res) {
+  const { periodo } = req.query
+  const result = await usuariosService.getAltasStats(periodo)
+  res.json(result)
+}
+
 export async function getByCodigo(req, res) {
   const miembro = await usuariosService.getMiembroByCodigo(req.params.codigo)
 
