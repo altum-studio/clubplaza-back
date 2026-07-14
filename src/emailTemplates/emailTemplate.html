@@ -35,7 +35,7 @@
 
         <table role="presentation" class="container" width="100%" cellpadding="0" cellspacing="0" style="width:100%; max-width:600px; background:#ffffff; border-radius:18px; overflow:hidden; box-shadow:0 1px 3px rgba(20,40,25,0.06), 0 18px 50px rgba(20,40,25,0.10);">
 
-          <!-- HERO DE FONDO · título abajo, degradado verde suave -->
+          <!-- HERO · solo imagen + logo (sin texto sobre la foto: legible en dark mode) -->
           <tr>
             <td class="hero-td" height="420" valign="bottom" bgcolor="#17502a" background="https://owdlmvkhjzpoyubhdvom.supabase.co/storage/v1/object/public/banners/shopping.jpg"
               style="height:420px; background-color:#17502a; background-image:url('https://owdlmvkhjzpoyubhdvom.supabase.co/storage/v1/object/public/banners/shopping.jpg'); background-size:cover; background-position:center;">
@@ -47,17 +47,23 @@
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="padding:26px 40px 30px;">
-                    <img src="https://owdlmvkhjzpoyubhdvom.supabase.co/storage/v1/object/public/logos/iso-verde.png" width="44" height="44" alt="ClubPlaza" style="width:44px; height:44px; margin:0 0 16px;" />
-                    <p style="margin:0 0 10px; font-family:'Montserrat',Arial,sans-serif; font-size:12.5px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#cfe6d6;">Te damos la bienvenida</p>
-                    <h1 class="h1" style="margin:0; font-family:'Montserrat',Arial,sans-serif; font-size:33px; line-height:40px; font-weight:800; letter-spacing:-0.5px; color:#ffffff; text-shadow:0 2px 12px rgba(0,0,0,0.45);">
-                      Hola {{NOMBRE}},<br/>ya sos parte de ClubPlaza
-                    </h1>
+                    <img src="https://owdlmvkhjzpoyubhdvom.supabase.co/storage/v1/object/public/logos/iso-verde.png" width="44" height="44" alt="ClubPlaza" style="width:44px; height:44px; margin:0;" />
                   </td>
                 </tr>
               </table>
               <!--[if gte mso 9]>
               </td></tr></table></v:textbox></v:rect>
               <![endif]-->
+            </td>
+          </tr>
+
+          <!-- BANDA DE BIENVENIDA · fondo verde sólido (texto sobre color, no sobre la foto) -->
+          <tr>
+            <td class="px" style="background-color:#17502a; padding:26px 42px 30px;">
+              <p style="margin:0 0 10px; font-family:'Montserrat',Arial,sans-serif; font-size:12.5px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#cfe6d6;">Te damos la bienvenida</p>
+              <h1 class="h1" style="margin:0; font-family:'Montserrat',Arial,sans-serif; font-size:33px; line-height:40px; font-weight:800; letter-spacing:-0.5px; color:#ffffff;">
+                Hola {{NOMBRE}},<br/>ya sos parte de ClubPlaza
+              </h1>
             </td>
           </tr>
 
