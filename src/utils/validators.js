@@ -64,11 +64,7 @@ export function validateHorarios(horarios) {
 
       const [desde, hasta] = rango
       if (!TIME_RE.test(desde) || !TIME_RE.test(hasta)) {
-        throw new AppError('Los horarios deben usar formato 24h HH:MM', 400)
-      }
-
-      if (desde >= hasta) {
-        throw new AppError('El inicio del rango debe ser anterior al fin', 400)
+        throw new AppError('Formato de hora inválido. Usar HH:MM (00:00-23:59)', 400)
       }
     }
   }
